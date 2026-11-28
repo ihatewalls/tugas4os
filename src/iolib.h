@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 #define IOLIB_DEFAULT_GROUP   "B07"
-#define IOLIB_DEFAULT_LOG_DIR "logs"
+#define IOLIB_DEFAULT_LOG_DIR "../logs"
 #define IOLIB_PATH_MAX        512
 #define IOLIB_TS_LEN          32
 

@@ -3,6 +3,6 @@
 
 void print_banner(void)
 {
-    printf("=== Kelompok B07 | Tugas 4 - Filesystem dan I/O ===\n")
+    printf("=== Kelompok B07 | Tugas 4 - Filesystem dan I/O ===\n");
     fflush(stdout);
 }
