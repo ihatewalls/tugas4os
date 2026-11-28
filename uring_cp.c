@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <getopt.h>
+#include "banner.h"
 #define QD 32
 
 struct slot {
@@ -20,6 +21,7 @@ static void usage(const char *prog) {
 }
 
 int main(int argc, char *argv[]) {
+    print_banner();
     const char *src_path = NULL;
     const char *dst_path = NULL;
 
