@@ -1,0 +1,29 @@
+#!/usr/bin/env bpftrace
+// $1 = dev_t loop device = major * 1048576 + minor (loop0 = 7340032)
+// 87 = 'W' (tulis)
+
+BEGIN
+{
+    @bio_queue = 0;
+    @rq_issue = 0;
+}
+
+tracepoint:block:block_bio_queue
+/args->dev == $1 && (args->rwbs[0] == 87 || args->rwbs[1] == 87)/
+{
+    @bio_queue++;
+    @ukuran_bio = hist(args->nr_sector * 512);
+}
+
+tracepoint:block:block_rq_issue
+/args->dev == $1 && (args->rwbs[0] == 87 || args->rwbs[1] == 87)/
+{
+    @rq_issue++;
+    @ukuran_request = hist(args->bytes);
+}
+
+END
+{
+    printf("Bio (block_bio_queue)  : %d\n", @bio_queue);
+    printf("Request (block_rq_issue): %d\n", @rq_issue);
+}
