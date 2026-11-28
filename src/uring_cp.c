@@ -11,7 +11,7 @@
 #include "iolib.h"
 #define QD 32
 
-struct slot { // used for breaking down the request
+struct slot { // structure of a request
     char *buf;
     off_t offset;
     size_t len;
@@ -23,12 +23,12 @@ static void usage(const char *prog) {
     fprintf(stderr, "Usage: %s --src <file> --dst <file> [--dev <blockdev>]\n", prog);
 }
 static int copy(int src_fd, int dst_fd, off_t file_size, uint64_t lat[QD], size_t bytes[QD], int *nops){
-    struct io_uring ring; // open uring
-    struct slot slots[QD]; // seperates the 32 requests
+    struct io_uring ring; 
+    struct slot slots[QD]; // 32 requests
     memset(slots, 0, sizeof(slots));
     *nops = 0;
     
-    int ret = io_uring_queue_init(QD, &ring, 0); // initializes the queue with 32 slots
+    int ret = io_uring_queue_init(QD, &ring, 0); // initializes the uring with 32 entries
     if (ret < 0) {
         fprintf(stderr, "queue_init: %s\n", strerror(-ret));
         return 1;
@@ -45,7 +45,7 @@ static int copy(int src_fd, int dst_fd, off_t file_size, uint64_t lat[QD], size_
         if (off + (off_t)len > file_size) len = file_size - off;   // last chunk might be shorter
 
         slots[i].buf = malloc(len); // 
-        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring); // submission queue
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring); // submission queue entry
         if (slots[i].buf == NULL || sqe == NULL) {
             fprintf(stderr, "failed to set up slot %d\n", i);
             status = -1;
@@ -56,16 +56,16 @@ static int copy(int src_fd, int dst_fd, off_t file_size, uint64_t lat[QD], size_
         slots[i].start_ns = io_now_ns();
 
         io_uring_prep_read(sqe, src_fd, slots[i].buf, len, slots[i].offset); // making read request
-        io_uring_sqe_set_data(sqe, &slots[i]); // saves the request in the array
+        io_uring_sqe_set_data(sqe, &slots[i]); // sets pointer in entry
 
-        count++; // counts operations
+        count++; // counts operations pending
     }
 
     *nops = count;
     io_uring_submit(&ring); // send all 32 requests at once
 
-    while (count > 0) { // submissions = completions
-        struct io_uring_cqe *cqe; // completion queue
+    while (count > 0) { // submissions = completions, operations pending counting down
+        struct io_uring_cqe *cqe; // completion queue entry
         ret = io_uring_wait_cqe(&ring, &cqe); // wait for an entry
         if (ret < 0) { 
             fprintf(stderr, "wait_cqe: %s\n", strerror(-ret));
@@ -75,9 +75,9 @@ static int copy(int src_fd, int dst_fd, off_t file_size, uint64_t lat[QD], size_
         struct slot *s = io_uring_cqe_get_data(cqe); // take data
         int res = cqe->res;
         io_uring_cqe_seen(&ring, cqe); // marks seen
-        count--; // decrement for the loop
+        count--; // no longer pending
 
-        if (res < 0) { fprintf(stderr, "I/O error: %s\n", strerror(-res)); break; }
+        if (res < 0) { fprintf(stderr, "I/O error: %s\n", strerror(-res)); status = -1; break; }
 
         if ((size_t)res != s->len) {
             fprintf(stderr, "short %s: %d of %zu bytes\n",
@@ -95,13 +95,13 @@ static int copy(int src_fd, int dst_fd, off_t file_size, uint64_t lat[QD], size_
             io_uring_submit(&ring);
         } else {
             int idx = (int)(s - slots);
-            lat[idx] = io_elapsed_ns(s->start_ns, io_now_ns()); // saves how long it took to write
+            lat[idx] = io_elapsed_ns(s->start_ns, io_now_ns()); // saves how long it took to copy
             bytes[idx] = s->len; // saves how many bytes were written 
         }
     }
     out:
-        for (int i = 0; i < QD; i++) free(slots[i].buf); // free memory
         io_uring_queue_exit(&ring); // close uring
+        for (int i = 0; i < QD; i++) free(slots[i].buf); // free memory
         return status;
 }
 int main(int argc, char *argv[]) {
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char dst_copy[IOLIB_PATH_MAX]; // gets current directory
+    char dst_copy[IOLIB_PATH_MAX]; // gets destination directory
     snprintf(dst_copy, sizeof(dst_copy), "%s", dst_path);
     const char *media_dir = dirname(dst_copy);
 
