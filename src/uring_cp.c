@@ -174,6 +174,10 @@ int main(int argc, char *argv[]) {
     // checks time before and after to find elapsed time
     uint64_t t0 = io_now_ns();
     int status = copy(src_fd, dst_fd, file_size, lat, bytes, &nops);
+    if (status == 0 && fsync(dst_fd) < 0) {
+        perror("fsync");
+        status = -1;
+    }
     uint64_t t1 = io_now_ns();
 
     close(src_fd); // copy done, fds can be closed
